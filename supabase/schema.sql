@@ -59,7 +59,15 @@ create policy members_edit   on public.members for update to authenticated using
 create policy members_delete on public.members for delete to authenticated using (public.my_role() = 'admin');
 
 create policy ops_read   on public.ops for select to authenticated using (public.my_role() is not null);
-create policy ops_add    on public.ops for insert to authenticated with check (public.my_role() is not null);
+-- The bar account may only record drinks (always a debit) and void a drink it can see;
+-- top-ups, corrections and other voids are admin-only.
+create policy ops_add on public.ops for insert to authenticated with check (
+  public.my_role() = 'admin'
+  or (public.my_role() = 'bar' and (
+       (k = 'drink' and p < 0)
+    or (k = 'void' and exists (select 1 from public.ops o where o.id = ops.v and o.k = 'drink' and o.m = ops.m and o.p = -ops.p))
+  ))
+);
 create policy ops_delete on public.ops for delete to authenticated using (public.my_role() = 'admin');
 
 create policy config_read  on public.config for select to authenticated using (public.my_role() is not null);

@@ -35,6 +35,10 @@
 }
 html,body{min-height:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+/* Natolin group photo behind everything, washed out with the page colour so text stays readable.
+   A fixed layer instead of background-attachment:fixed, which iOS ignores. */
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(color-mix(in srgb,var(--bg) 72%,transparent),color-mix(in srgb,var(--bg) 88%,transparent)),url("assets/natolin.jpg") center 35%/cover no-repeat}
 *,*::before,*::after{box-sizing:border-box}
 button,input,textarea{font:inherit;color:inherit}
 h1,h2,h3{margin:0;font-family:var(--font-display);font-weight:700;line-height:1.15;text-wrap:balance}
@@ -136,7 +140,7 @@ textarea.field{min-height:110px;resize:vertical}
 
 /* bottom tabs */
 .tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));z-index:5}
-.tabs div{max-width:640px;margin-inline:auto;display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
+.tabs div{max-width:640px;margin-inline:auto;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px}
 .tab{min-height:52px;border:0;background:transparent;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11.5px;font-weight:600;color:var(--muted);cursor:pointer;min-width:0;padding:4px 2px}
 .tab svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .tab[aria-selected="true"]{color:var(--accent-text);background:var(--accent-soft)}
@@ -370,7 +374,7 @@ body.locked #v-login{display:block}
         <hr class="sep">
         <div class="card">
           <h3 style="font-size:16px;margin-bottom:6px">Who can do what</h3>
-          <p class="hint">The bar account can serve drinks, top up and manage students. Only the admin account can change these settings or delete example accounts. Every operation is kept: a mistake is fixed with “Void”, never by deleting.</p>
+          <p class="hint">The bar account can serve drinks and manage students. Only the admin account can top up, make corrections, change these settings or delete example accounts. Every operation is kept: a mistake is fixed with “Void”, never by deleting.</p>
           <p class="hint" id="who" style="margin-top:8px"></p>
           <button class="btn ghost small" id="sign-out" type="button" style="margin-top:8px">Sign out</button>
         </div>
@@ -386,7 +390,7 @@ body.locked #v-login{display:block}
 <nav class="tabs" aria-label="Navigation">
   <div role="tablist">
     <button class="tab" role="tab" data-tab="bar" aria-selected="true" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14l-1.6 9a5.5 5.5 0 0 1-10.8 0L5 4Z"/><path d="M12 18.5V21M8.5 21h7"/></svg>Bar</button>
-    <button class="tab" role="tab" data-tab="topup" aria-selected="false" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Top up</button>
+    <button class="tab" role="tab" data-tab="topup" id="tab-topup" aria-selected="false" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Top up</button>
     <button class="tab" role="tab" data-tab="rank" aria-selected="false" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V11h4.500v9M9.800 20V4h4.500v16M15.500 20v-6.500H20V20"/></svg>Ranking</button>
     <button class="tab" role="tab" data-tab="acc" aria-selected="false" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.3 2.8-5 5.5-5s4.9 1.7 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.3c2.6.1 4.200 1.600 4.800 4.200"/></svg>Accounts</button>
     <button class="tab" role="tab" data-tab="set" aria-selected="false" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Settings</button>
@@ -401,7 +405,7 @@ body.locked #v-login{display:block}
 'use strict';
 document.documentElement.lang='en';
 
-var DEF={barName:'My bar',menu:[{id:'beer',name:'Beer',pts:1},{id:'wine',name:'Wine',pts:1},{id:'cocktail',name:'Cocktail',pts:2}],ppe:1,pln:4.25,amounts:[5,10,15,20,30,50],accent:'teal',neg:false};
+var DEF={barName:'My bar',menu:[{id:'beer',name:'Beer',pts:1.5},{id:'wine',name:'Wine',pts:1.5},{id:'cocktail',name:'Cocktail',pts:2.5},{id:'mocktail',name:'Mocktail',pts:2},{id:'soft',name:'Soft',pts:1}],ppe:1,pln:4.25,amounts:[5,10,15,20,30,50],accent:'teal',neg:false};
 var ACC={teal:['Teal','#0F766E'],indigo:['Indigo','#4F46E5'],rose:['Rose','#BE123C'],orange:['Orange','#C2410C'],violet:['Violet','#7C3AED'],green:['Green','#15803D']};
 var S={db:null,offline:false,members:[],ops:[],mm:new Map(),cfg:Object.assign({},DEF),bal:new Map(),voided:new Set(),by:new Map(),drinks:0,
   canWrite:null,isAdmin:false,tot:new Map(),tab:'bar',sel:null,selSince:0,top:{mid:null,euros:null},sort:'name',showOff:false,missingNat:false,
@@ -509,7 +513,8 @@ function addOp(o){
   var doc=Object.assign({ts:Date.now()},o);
   return tryW(function(){return ref.set(doc)}).then(function(ok){return ok?ref.id:null});
 }
-function canVoid(o){return (o.k==='topup'||o.k==='drink'||o.k==='adjust')&&!S.voided.has(o.id)}
+// The bar account can only void drinks; anything that moves money is admin-only.
+function canVoid(o){return (o.k==='drink'||(S.isAdmin&&(o.k==='topup'||o.k==='adjust')))&&!S.voided.has(o.id)}
 function voidOp(o){
   if(S.voided.has(o.id))return Promise.resolve(null);
   return addOp({m:o.m,k:'void',p:r2(-o.p),v:o.id}).then(function(id){if(id)toast('Operation voided.');return id});
@@ -542,7 +547,7 @@ function sell(m){
 }
 function credit(){
   var m=S.mm.get(S.top.mid),eu=S.top.euros;
-  if(!m||!(eu>0)||S.busy)return;
+  if(!m||!(eu>0)||S.busy||!S.isAdmin)return;
   if(eu>1000){toast('Amount too high (€1000 at most).','bad');return}
   var pts=r2(eu*S.cfg.ppe);
   if(!(pts>0)){toast('This amount gives zero Prints.','bad');return}
@@ -613,6 +618,7 @@ function histItem(o,showName){
 /* ---------- tabs ---------- */
 var VIEWS={bar:'v-bar',topup:'v-topup',rank:'v-rank',acc:'v-acc',set:'v-set'};
 function setTab(t){
+  if(t==='topup'&&!S.isAdmin)t='bar';
   S.tab=t;
   Object.keys(VIEWS).forEach(function(k){$(VIEWS[k]).hidden=k!==t});
   document.querySelectorAll('.tab').forEach(function(b){b.setAttribute('aria-selected',String(b.dataset.tab===t))});
@@ -718,7 +724,7 @@ function renderLevels(ul,hint){
   var per=S.tot;
   S.members.forEach(function(m){var p=per.get(m.id)||0;if(m.active===false&&!p)return;groups[lvIdx(p)].push({m:m,p:p})});
   var nodes=[];
-  for(var i=LEVELS.length-1;i>=0;i--){
+  for(var i=0;i<LEVELS.length;i++){
     (function(i){
       var g=groups[i].sort(function(a,b){return b.p-a.p||byName(a.m,b.m)}),L=LEVELS[i];
       var sub=i===0?'under '+fmt(LEVELS[1].at)+' Prints':'from '+fmt(L.at)+' Prints';
@@ -967,7 +973,7 @@ function renderSheet(focus){
           h('button',{class:'btn',type:'button',style:'flex:1',disabled:S.busy,text:'Serve · −'+fmt(total)+' '+PR(total)+' (≈ '+zl(total)+')',onclick:function(){sell(m)}}),
           h('button',{class:'btn ghost',type:'button',text:'Clear',onclick:function(){S.cart={mid:null,q:{}};renderSheet(false)}}))));
     }else if(on)kids.push(h('p',{class:'hint',style:'margin-top:10px',text:'Tap items to build the order, then serve.'}));
-    kids.push(h('div',{style:'margin-top:12px'},h('button',{class:'btn ghost',type:'button',text:'Top up this account',onclick:function(){S.top={mid:m.id,euros:null};closeSheet();setTab('topup')}})));
+    if(S.isAdmin)kids.push(h('div',{style:'margin-top:12px'},h('button',{class:'btn ghost',type:'button',text:'Top up this account',onclick:function(){S.top={mid:m.id,euros:null};closeSheet();setTab('topup')}})));
   }
   if(W){
     var ni=h('input',{class:'field',id:'nat-in',list:'nats',maxlength:'40',value:m.nat||'',placeholder:'Nationality (two: French, Irish)','aria-label':'Nationality, or two separated by a comma',autocomplete:'off'});
@@ -991,7 +997,7 @@ function renderSheet(focus){
           var v=nm.value.trim().replace(/\s+/g,' ');if(!v||v===m.name)return;
           if(S.members.some(function(x){return x.id!==m.id&&norm(x.name)===norm(v)})){toast('Another account already has this name.','bad');return}
           tryW(function(){return S.db.collection('members').doc(m.id).update({name:v})}).then(function(ok){if(ok)toast('Name changed.')});}}))),
-        h('div',null,h('span',{class:'lbl',text:'Manual correction (Prints)'}),h('div',{class:'stack'},ap,an,h('button',{class:'btn ghost',type:'button',text:'Apply correction',onclick:function(){
+        !S.isAdmin?null:h('div',null,h('span',{class:'lbl',text:'Manual correction (Prints)'}),h('div',{class:'stack'},ap,an,h('button',{class:'btn ghost',type:'button',text:'Apply correction',onclick:function(){
           var p=num(ap.value),n=an.value.trim();
           if(!p||Math.abs(p)>1000){toast('Enter a non-zero number of Prints (1000 at most).','bad');return}
           if(!n){toast('Give a reason for the correction.','bad');return}
@@ -1102,6 +1108,7 @@ function start(session){
     if(role!=='bar'&&role!=='admin'){sb.auth.signOut();showLogin("This account isn't on the staff list. Ask the admin.");return}
     document.body.classList.remove('locked');
     S.canWrite=true;S.isAdmin=role==='admin';
+    $('tab-topup').hidden=!S.isAdmin;
     $('who').textContent='Signed in as '+session.user.email+' ('+(S.isAdmin?'admin':'bar')+').';
     var db=makeDb(sb);S.db=db;
     var onErr=function(e){S.err=e;update()};
