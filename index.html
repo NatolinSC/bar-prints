@@ -405,7 +405,7 @@ body.locked #v-login{display:block}
 'use strict';
 document.documentElement.lang='en';
 
-var DEF={barName:'My bar',menu:[{id:'beer',name:'Beer',pts:1.5},{id:'wine',name:'Wine',pts:1.5},{id:'cocktail',name:'Cocktail',pts:2.5},{id:'mocktail',name:'Mocktail',pts:2},{id:'soft',name:'Soft',pts:1}],ppe:1,pln:4.25,amounts:[5,10,15,20,30,50],accent:'teal',neg:false};
+var DEF={barName:'My bar',menu:[{id:'beer',name:'Beer',pts:1.5},{id:'wine',name:'Wine',pts:1.5},{id:'cocktail',name:'Cocktail',pts:2.5},{id:'mocktail',name:'Mocktail',pts:2},{id:'soft',name:'Soft',pts:1},{id:'shot',name:'Shot',pts:1.5}],ppe:1,pln:4.25,amounts:[5,10,15,20,30,50],accent:'teal',neg:false};
 var ACC={teal:['Teal','#0F766E'],indigo:['Indigo','#4F46E5'],rose:['Rose','#BE123C'],orange:['Orange','#C2410C'],violet:['Violet','#7C3AED'],green:['Green','#15803D']};
 var S={db:null,offline:false,members:[],ops:[],mm:new Map(),cfg:Object.assign({},DEF),bal:new Map(),voided:new Set(),by:new Map(),drinks:0,
   canWrite:null,isAdmin:false,tot:new Map(),tab:'bar',sel:null,selSince:0,top:{mid:null,euros:null},sort:'name',showOff:false,missingNat:false,
