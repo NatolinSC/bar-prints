@@ -126,18 +126,22 @@ button:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid col
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
 .bar2{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .lb{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
-.lbrow{width:100%;display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);position:relative;overflow:hidden;text-align:left}
+.lbrow{width:100%;display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);text-align:left}
 button.lbrow{cursor:pointer}
 button.lbrow:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
-.lbrow .rk{font-family:var(--font-display);font-weight:700;font-size:20px;color:var(--muted);text-align:center}
-.lb li.top .rk{color:var(--accent-text);font-size:24px}
+/* Rank as a small round badge; the podium gets gold, silver and bronze medals. */
+.lbrow .rk{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);color:var(--muted);font-family:var(--font-display);font-weight:700;font-size:15px}
+.lb li.r1 .rk{background:#E9C75A;color:#4A3700}
+.lb li.r2 .rk{background:#D4D6DB;color:#33363D}
+.lb li.r3 .rk{background:#D9A273;color:#4A2608}
+.lb li.r1 .lbrow{border-color:color-mix(in srgb,#C9A227 60%,var(--line))}
+.seg.full{display:flex;width:100%}
+.seg.full button{flex:1;padding:4px 6px;font-size:13.5px;min-width:0}
 .lbrow .lbn{min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
 .lbrow .val{text-align:right}
 .lbrow .val b{display:block;font-family:var(--font-display);font-size:18px;line-height:1.15}
 .lbrow .val span{font-size:12.5px;color:var(--muted)}
-.lbrow .fill{position:absolute;left:0;bottom:0;height:4px;background:var(--accent);border-radius:0 4px 4px 0}
 .lb li.muted .lbrow{background:transparent;border-style:dashed}
-.lb li.muted .fill{display:none}
 details.more{border:1px solid var(--line);border-radius:12px;padding:0 12px;background:var(--surface)}
 details.more summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600}
 details.more[open]{padding-bottom:12px}
@@ -296,16 +300,11 @@ body.locked #v-login{display:block}
     <section id="v-rank" aria-label="Ranking" hidden>
       <div class="stack">
         <div class="stats" id="rk-stats"></div>
-        <div class="bar2" style="justify-content:space-between">
-          <div class="seg" role="group" aria-label="Ranking view">
-            <button type="button" id="rk-st" aria-pressed="true">Students</button>
-            <button type="button" id="rk-na" aria-pressed="false">Nationalities</button>
-            <button type="button" id="rk-lv" aria-pressed="false">Levels</button>
-          </div>
-          <div class="seg" id="rk-sortseg" role="group" aria-label="Nationality ranking basis" hidden>
-            <button type="button" id="rk-tot" aria-pressed="true">Total</button>
-            <button type="button" id="rk-avg" aria-pressed="false">Per student</button>
-          </div>
+        <div class="seg full" role="group" aria-label="Ranking view">
+          <button type="button" id="rk-st" aria-pressed="true">Students</button>
+          <button type="button" id="rk-na" aria-pressed="false">Nationalities</button>
+          <button type="button" id="rk-pc" aria-pressed="false">Per student</button>
+          <button type="button" id="rk-lv" aria-pressed="false">Levels</button>
         </div>
         <p class="hint" id="rk-hint"></p>
       </div>
@@ -424,7 +423,7 @@ var DEF={barName:'Bar Prints',menu:[{id:'beer',name:'Beer',pts:1.5},{id:'wine',n
 var ACC={bordeaux:['Bordeaux','#7B1E2B'],teal:['Teal','#0F766E'],indigo:['Indigo','#4F46E5'],rose:['Rose','#BE123C'],orange:['Orange','#C2410C'],violet:['Violet','#7C3AED'],green:['Green','#15803D']};
 var S={db:null,offline:false,members:[],ops:[],mm:new Map(),cfg:Object.assign({},DEF),bal:new Map(),voided:new Set(),by:new Map(),drinks:0,
   canWrite:null,isAdmin:false,tot:new Map(),tab:'bar',sel:null,selSince:0,top:{mid:null,euros:null},sort:'name',showOff:false,missingNat:false,
-  rk:{mode:'students',natSort:'total',all:false},cart:{mid:null,q:{}},menuDraft:[],
+  rk:{mode:'students',all:false},cart:{mid:null,q:{}},menuDraft:[],
   ready:{m:false,o:false},setDirty:false,pendingAccent:null,busy:false,err:null};
 
 var $=function(id){return document.getElementById(id)};
@@ -444,7 +443,11 @@ var LEVELS=[
   {at:130,dn:'How is your thesis going level',ds:'Thesis',name:'How is your thesis going level',short:'Thesis'},
   {at:150,dn:'Trilogue level',ds:'Trilogue',name:'Trilogue level',short:'Trilogue'},
   {at:180,dn:'Advocate General level',ds:'Advocate General',name:'Advocate General level',short:'Advocate General'},
-  {at:200,dn:'Natolin Master',ds:'Natolin Master',name:'Natolin Master',short:'Natolin Master'}];
+  {at:200,dn:'Qualified Majority level',ds:'QMV',name:'Qualified Majority level',short:'QMV'},
+  {at:230,dn:'Spitzenkandidat level',ds:'Spitzenkandidat',name:'Spitzenkandidat level',short:'Spitzenkandidat'},
+  {at:260,dn:'Commissioner level',ds:'Commissioner',name:'Commissioner level',short:'Commissioner'},
+  {at:300,dn:'Ode to Joy level',ds:'Ode to Joy',name:'Ode to Joy level',short:'Ode to Joy'},
+  {at:350,dn:'Natolin Master',ds:'Natolin Master',name:'Natolin Master',short:'Natolin Master'}];
 var applyLv=function(){if(!S.cfg.lv)return;LEVELS.forEach(function(L,i){var n=S.cfg.lv[i]||L.dn;L.name=n;L.short=n===L.dn?L.ds:n})};
 var lvIdx=function(p){var i=0;for(var k=0;k<LEVELS.length;k++)if(p>=LEVELS[k].at-1e-9)i=k;return i};
 
@@ -726,12 +729,11 @@ function rechargeStats(){
   });
   return per;
 }
-function lbRow(rank,title,tags,main,sub,ratio,fn,cls){
+function lbRow(rank,title,tags,main,sub,fn,cls){
   var inner=[h('span',{class:'rk num',text:rank?String(rank):'–'}),h('span',{class:'lbn'},h('span',{class:'nm',text:title}),tags),
-    h('span',{class:'val'},h('b',{class:'num',text:main}),h('span',{class:'num',text:sub})),
-    h('span',{class:'fill',style:'width:'+Math.max(2,Math.round(ratio*100))+'%'})];
+    h('span',{class:'val'},h('b',{class:'num',text:main}),h('span',{class:'num',text:sub}))];
   var el=fn?h('button',{class:'lbrow',type:'button',onclick:fn},inner):h('div',{class:'lbrow'},inner);
-  return h('li',{class:cls||(rank&&rank<=3?'top':null)},el);
+  return h('li',{class:cls||(rank>=1&&rank<=3?'r'+rank:null)},el);
 }
 function renderLevels(ul,hint){
   hint.textContent="Levels follow the total Prints each student has topped up. Voided top-ups don't count. Tap a level to see who is in it.";
@@ -758,9 +760,8 @@ function renderLevels(ul,hint){
 }
 function renderRank(){
   var per=rechargeStats(),mode=S.rk.mode;
-  $('rk-st').setAttribute('aria-pressed',String(mode==='students'));$('rk-na').setAttribute('aria-pressed',String(mode==='nat'));$('rk-lv').setAttribute('aria-pressed',String(mode==='lv'));
-  $('rk-sortseg').hidden=mode!=='nat';
-  $('rk-tot').setAttribute('aria-pressed',String(S.rk.natSort==='total'));$('rk-avg').setAttribute('aria-pressed',String(S.rk.natSort==='avg'));
+  $('rk-st').setAttribute('aria-pressed',String(mode==='students'));$('rk-na').setAttribute('aria-pressed',String(mode==='nat'));
+  $('rk-pc').setAttribute('aria-pressed',String(mode==='natavg'));$('rk-lv').setAttribute('aria-pressed',String(mode==='lv'));
   var totPts=0,totEur=0,totN=0,payers=0;
   per.forEach(function(s){totPts=r2(totPts+s.pts);totEur=r2(totEur+s.eur);totN+=s.n;payers++});
   $('rk-stats').replaceChildren(
@@ -777,15 +778,15 @@ function renderRank(){
     per.forEach(function(s,id){var m=S.mm.get(id);if(m)rows.push({m:m,s:s})});
     rows.sort(function(a,b){return b.s.pts-a.s.pts||byName(a.m,b.m)});
     if(!rows.length){ul.replaceChildren(emptyBox('No top-ups yet','The ranking appears as soon as someone tops up.'));return}
-    var max=rows[0].s.pts||1,lim=S.rk.all?rows.length:20;
+    var lim=S.rk.all?rows.length:20;
     ul.replaceChildren.apply(ul,rows.slice(0,lim).map(function(r,i){
       var tags=[h('span',{class:'tag lv',text:LEVELS[lvIdx(r.s.pts)].short}),r.m.nat?h('span',{class:'tag',text:r.m.nat}):null,r.m.ex?h('span',{class:'tag',text:'example'}):null,r.m.active===false?h('span',{class:'tag',text:'deactivated'}):null];
-      return lbRow(i+1,r.m.name,tags,fmt(r.s.pts)+' Prints',eur(r.s.eur)+' · '+r.s.n+' '+plural(r.s.n,'top-up','top-ups'),r.s.pts/max,function(){openSheet(r.m.id)});
+      return lbRow(i+1,r.m.name,tags,fmt(r.s.pts)+' Prints',eur(r.s.eur)+' · '+r.s.n+' '+plural(r.s.n,'top-up','top-ups'),function(){openSheet(r.m.id)});
     }));
     if(rows.length>lim)more.replaceChildren(h('button',{class:'btn ghost',type:'button',text:'Show all '+rows.length,onclick:function(){S.rk.all=true;renderRank()}}));
   }else{
-    var avg=S.rk.natSort==='avg';
-    hint.textContent=(avg?"Average Prints topped up per student, counting students who haven't topped up.":'Total Prints topped up by all students of each nationality.')+' A student with two nationalities counts for both.';
+    var avg=mode==='natavg';
+    hint.textContent=(avg?"Total Prints of each nationality divided by its number of students (those who haven't topped up count too), so big groups don't win by size alone.":'Total Prints topped up by all students of each nationality.')+' A student with two nationalities counts for both.';
     var groups=new Map(),none={label:'No nationality set',pts:0,eur:0,n:0,students:0};
     S.members.slice().sort(byName).forEach(function(m){
       var s=per.get(m.id)||{pts:0,eur:0,n:0},list=natList(m.nat);
@@ -796,12 +797,11 @@ function renderRank(){
     gs.forEach(function(g){g.avg=g.students?r2(g.pts/g.students):0});
     gs.sort(function(a,b){return avg?(b.avg-a.avg||b.pts-a.pts):(b.pts-a.pts||b.avg-a.avg)});
     if(!gs.length){ul.replaceChildren(emptyBox('No nationalities yet','Set a nationality on each student in the Accounts tab to see this ranking.'));return}
-    var maxv=Math.max.apply(null,gs.map(function(g){return avg?g.avg:g.pts}))||1;
     var nodes=gs.map(function(g,i){
       var v=avg?g.avg:g.pts;
-      return lbRow(i+1,g.label,null,fmt(v)+' Prints',avg?'per student · '+fmt(g.pts)+' total · '+g.students+' '+plural(g.students,'student','students'):eur(g.eur)+' · '+g.students+' '+plural(g.students,'student','students'),v/maxv,null);
+      return lbRow(i+1,g.label,null,fmt(v)+' Prints',avg?'per student · '+fmt(g.pts)+' total · '+g.students+' '+plural(g.students,'student','students'):eur(g.eur)+' · '+g.students+' '+plural(g.students,'student','students'),null);
     });
-    if(none.students)nodes.push(lbRow(0,none.label,null,fmt(none.pts)+' Prints',none.students+' '+plural(none.students,'student','students')+' · not ranked',0,null,'muted'));
+    if(none.students)nodes.push(lbRow(0,none.label,null,fmt(none.pts)+' Prints',none.students+' '+plural(none.students,'student','students')+' · not ranked',null,'muted'));
     ul.replaceChildren.apply(ul,nodes);
   }
 }
@@ -1048,8 +1048,7 @@ $('sort-bal').addEventListener('click',function(){S.sort='bal';renderAcc()});
 $('rk-st').addEventListener('click',function(){S.rk.mode='students';renderRank()});
 $('rk-na').addEventListener('click',function(){S.rk.mode='nat';renderRank()});
 $('rk-lv').addEventListener('click',function(){S.rk.mode='lv';renderRank()});
-$('rk-tot').addEventListener('click',function(){S.rk.natSort='total';renderRank()});
-$('rk-avg').addEventListener('click',function(){S.rk.natSort='avg';renderRank()});
+$('rk-pc').addEventListener('click',function(){S.rk.mode='natavg';renderRank()});
 $('export').addEventListener('click',exportCsv);
 $('s-save').addEventListener('click',saveSet);
 $('lv-reset').addEventListener('click',function(){S.lvDraft=LEVELS.map(function(L){return L.dn});S.setDirty=true;renderLvEd(S.isAdmin&&!!S.db)});
