@@ -58,6 +58,18 @@ create policy members_add    on public.members for insert to authenticated with 
 create policy members_edit   on public.members for update to authenticated using (public.my_role() is not null) with check (public.my_role() is not null);
 create policy members_delete on public.members for delete to authenticated using (public.my_role() = 'admin');
 
+-- The bar account may only change a student's nationality; renaming and (de)activating are admin-only.
+create function public.members_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if coalesce(public.my_role(), '') <> 'admin'
+     and (new.name is distinct from old.name or new.active is distinct from old.active or new.ex is distinct from old.ex) then
+    raise exception 'Only the admin account can rename or deactivate a student' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+create trigger members_guard before update on public.members for each row execute function public.members_guard();
+
 create policy ops_read   on public.ops for select to authenticated using (public.my_role() is not null);
 -- The bar account may only record drinks (always a debit) and void a drink it can see;
 -- top-ups, corrections and other voids are admin-only.

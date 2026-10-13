@@ -1002,7 +1002,8 @@ function renderSheet(focus){
   var ops=(S.by.get(m.id)||[]).slice(0,30);
   kids.push(h('h3',{style:'font-size:16px;margin-top:20px',text:'History'}));
   kids.push(ops.length?h('ul',{class:'hist'},ops.map(function(o){return histItem(o,false)})):h('p',{class:'hint',style:'margin-top:6px',text:'No activity on this account.'}));
-  if(W){
+  // Renaming, corrections and deactivation are admin-only.
+  if(W&&S.isAdmin){
     var nm=h('input',{class:'field',id:'ren',maxlength:'60',value:m.name,'aria-label':'Account name'});
     var ap=h('input',{class:'field num',id:'adj-p',inputmode:'decimal',placeholder:'e.g. +3 or −2','aria-label':'Prints to add or remove'});
     var an=h('input',{class:'field',id:'adj-n',maxlength:'80',placeholder:'Reason (required)','aria-label':'Reason for the correction'});
