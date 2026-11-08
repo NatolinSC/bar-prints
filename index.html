@@ -507,12 +507,16 @@ var dn=function(m){return (S.short&&S.short.get(m.id))||m.name};
 function derive(){
   S.mm=new Map(S.members.map(function(m){return [m.id,m]}));
   S.short=shortNames(S.members);
-  S.bal=new Map();S.voided=new Set();S.by=new Map();S.drinks=0;S.tot=new Map();
+  // served: per student, Prints spent on drinks (voided drinks excluded) and number of drinks. Rankings and levels use it.
+  S.bal=new Map();S.voided=new Set();S.by=new Map();S.drinks=0;S.tot=new Map();S.served=new Map();
   S.ops.forEach(function(o){if(o.k==='void')S.voided.add(o.v)});
   S.ops.forEach(function(o){
     S.bal.set(o.m,r2((S.bal.get(o.m)||0)+o.p));
     if(!S.by.has(o.m))S.by.set(o.m,[]);S.by.get(o.m).push(o);
-    if(o.k==='drink'&&!S.voided.has(o.id))S.drinks+=o.q||1;
+    if(o.k==='drink'&&!S.voided.has(o.id)){
+      S.drinks+=o.q||1;
+      var s=S.served.get(o.m)||{pts:0,n:0};s.pts=r2(s.pts-o.p);s.n+=o.q||1;S.served.set(o.m,s);
+    }
     if(o.k==='topup'&&!S.voided.has(o.id))S.tot.set(o.m,r2((S.tot.get(o.m)||0)+o.p));
   });
   S.by.forEach(function(a){a.sort(function(x,y){return y.ts-x.ts})});
@@ -566,7 +570,7 @@ function cartAdd(mid,id,d){
 function sell(m){
   if(S.busy)return;
   var items=cartItems(m.id);if(!items.length)return;
-  var cost=cartTotal(items),qty=items.reduce(function(s,x){return s+x.q},0),b=bal(m.id);
+  var cost=cartTotal(items),qty=items.reduce(function(s,x){return s+x.q},0),b=bal(m.id),s0=served(m.id),lu=lvIdx(s0+cost)>lvIdx(s0)?' · now '+LEVELS[lvIdx(s0+cost)].name:'';
   if(!S.cfg.neg&&b<cost-1e-9){toast('Not enough Prints: '+fmt(b)+' available, '+fmt(cost)+' needed.','bad');return}
   S.busy=true;
   addOp({m:m.id,k:'drink',p:-cost,q:qty,it:items}).then(function(id){
@@ -574,7 +578,7 @@ function sell(m){
     if(!id)return;
     S.cart={mid:null,q:{}};
     closeSheet();$('q-bar').value='';update();
-    toast(dn(m)+': '+itemsText(items)+' ('+fmt(cost)+' '+PR(cost)+')',null,S.isAdmin?{label:'Undo',fn:function(){voidOp({id:id,m:m.id,p:-cost,k:'drink'})}}:null);
+    toast(dn(m)+': '+itemsText(items)+' ('+fmt(cost)+' '+PR(cost)+')'+lu,null,S.isAdmin?{label:'Undo',fn:function(){voidOp({id:id,m:m.id,p:-cost,k:'drink'})}}:null);
   });
 }
 function credit(){
@@ -584,7 +588,7 @@ function credit(){
   var pts=r2(eu*S.cfg.ppe);
   if(!(pts>0)){toast('This amount gives zero Prints.','bad');return}
   var note=$('top-note').value.trim().slice(0,80);
-  var t0=S.tot.get(m.id)||0,lu=lvIdx(t0+pts)>lvIdx(t0)?' · now '+LEVELS[lvIdx(t0+pts)].name:'';
+  var lu='';
   S.busy=true;
   addOp({m:m.id,k:'topup',p:pts,e:eu,n:note}).then(function(id){
     S.busy=false;
@@ -733,16 +737,7 @@ function renderPrev(){
 }
 
 /* ---------- ranking ---------- */
-function rechargeStats(){
-  var per=new Map();
-  S.ops.forEach(function(o){
-    if(o.k==='topup'&&!S.voided.has(o.id)){
-      var s=per.get(o.m)||{pts:0,eur:0,n:0};
-      s.pts=r2(s.pts+o.p);s.eur=r2(s.eur+(Number(o.e)||0));s.n++;per.set(o.m,s);
-    }
-  });
-  return per;
-}
+var served=function(id){var s=S.served.get(id);return s?s.pts:0};
 function lbRow(rank,title,tags,main,sub,fn,cls){
   var inner=[h('span',{class:'rk num',text:rank?String(rank):'–'}),h('span',{class:'lbn'},h('span',{class:'nm',text:title}),tags),
     h('span',{class:'val'},h('b',{class:'num',text:main}),h('span',{class:'num',text:sub}))];
@@ -750,10 +745,9 @@ function lbRow(rank,title,tags,main,sub,fn,cls){
   return h('li',{class:cls||(rank>=1&&rank<=3?'r'+rank:null)},el);
 }
 function renderLevels(ul,hint){
-  hint.textContent="Levels follow the total Prints each student has topped up. Voided top-ups don't count. Tap a level to see who is in it.";
+  hint.textContent="Levels follow the total Prints each student has spent on drinks. Voided drinks don't count. Tap a level to see who is in it.";
   var groups=LEVELS.map(function(){return []});
-  var per=S.tot;
-  S.members.forEach(function(m){var p=per.get(m.id)||0;if(m.active===false&&!p)return;groups[lvIdx(p)].push({m:m,p:p})});
+  S.members.forEach(function(m){var p=served(m.id);if(m.active===false&&!p)return;groups[lvIdx(p)].push({m:m,p:p})});
   var nodes=[];
   for(var i=0;i<LEVELS.length;i++){
     (function(i){
@@ -773,39 +767,39 @@ function renderLevels(ul,hint){
   ul.replaceChildren.apply(ul,nodes);
 }
 function renderRank(){
-  var per=rechargeStats(),mode=S.rk.mode;
+  var per=S.served,mode=S.rk.mode;
   $('rk-st').setAttribute('aria-pressed',String(mode==='students'));$('rk-na').setAttribute('aria-pressed',String(mode==='nat'));
   $('rk-pc').setAttribute('aria-pressed',String(mode==='natavg'));$('rk-lv').setAttribute('aria-pressed',String(mode==='lv'));
-  var totPts=0,totEur=0,totN=0,payers=0;
-  per.forEach(function(s){totPts=r2(totPts+s.pts);totEur=r2(totEur+s.eur);totN+=s.n;payers++});
+  var totPts=0,totN=0,drinkers=0;
+  per.forEach(function(s){if(!(s.pts>0))return;totPts=r2(totPts+s.pts);totN+=s.n;drinkers++});
   $('rk-stats').replaceChildren(
-    h('div',{class:'stat'},h('b',{class:'num',text:fmt(totPts)}),h('span',{text:'Prints topped up ('+eur(totEur)+')'})),
-    h('div',{class:'stat'},h('b',{class:'num',text:String(payers)}),h('span',{text:'of '+S.members.length+' '+plural(S.members.length,'student','students')+' topped up'})),
-    h('div',{class:'stat'},h('b',{class:'num',text:String(totN)}),h('span',{text:plural(totN,'top-up','top-ups')})));
+    h('div',{class:'stat'},h('b',{class:'num',text:fmt(totPts)}),h('span',{text:'Prints served'})),
+    h('div',{class:'stat'},h('b',{class:'num',text:String(drinkers)}),h('span',{text:'of '+S.members.length+' '+plural(S.members.length,'student','students')+' had a drink'})),
+    h('div',{class:'stat'},h('b',{class:'num',text:String(totN)}),h('span',{text:plural(totN,'drink served','drinks served')})));
   var ul=$('rk-list'),more=$('rk-more'),hint=$('rk-hint');
   more.replaceChildren();
   if(!S.ready.m&&S.db){hint.textContent='';ul.replaceChildren(emptyBox('Loading…'));return}
   if(mode==='lv'){renderLevels(ul,hint);return}
   if(mode==='students'){
-    hint.textContent="Ranked by total Prints topped up. Voided top-ups don't count.";
+    hint.textContent="Ranked by total Prints spent on drinks. Voided drinks don't count.";
     var rows=[];
-    per.forEach(function(s,id){var m=S.mm.get(id);if(m)rows.push({m:m,s:s})});
+    per.forEach(function(s,id){var m=S.mm.get(id);if(m&&s.pts>0)rows.push({m:m,s:s})});
     rows.sort(function(a,b){return b.s.pts-a.s.pts||byName(a.m,b.m)});
-    if(!rows.length){ul.replaceChildren(emptyBox('No top-ups yet','The ranking appears as soon as someone tops up.'));return}
+    if(!rows.length){ul.replaceChildren(emptyBox('No drinks served yet','The ranking appears as soon as the first drink is served.'));return}
     var lim=S.rk.all?rows.length:20;
     ul.replaceChildren.apply(ul,rows.slice(0,lim).map(function(r,i){
       var tags=[h('span',{class:'tag lv',text:LEVELS[lvIdx(r.s.pts)].short}),r.m.nat?h('span',{class:'tag',text:r.m.nat}):null,r.m.ex?h('span',{class:'tag',text:'example'}):null,r.m.active===false?h('span',{class:'tag',text:'deactivated'}):null];
-      return lbRow(i+1,dn(r.m),tags,fmt(r.s.pts)+' Prints',eur(r.s.eur)+' · '+r.s.n+' '+plural(r.s.n,'top-up','top-ups'),function(){openSheet(r.m.id)});
+      return lbRow(i+1,dn(r.m),tags,fmt(r.s.pts)+' Prints',r.s.n+' '+plural(r.s.n,'drink','drinks'),function(){openSheet(r.m.id)});
     }));
     if(rows.length>lim)more.replaceChildren(h('button',{class:'btn ghost',type:'button',text:'Show all '+rows.length,onclick:function(){S.rk.all=true;renderRank()}}));
   }else{
     var avg=mode==='natavg';
-    hint.textContent=(avg?"Total Prints of each nationality divided by its number of students (those who haven't topped up count too), so big groups don't win by size alone.":'Total Prints topped up by all students of each nationality.')+' A student with two nationalities counts for both.';
-    var groups=new Map(),none={label:'No nationality set',pts:0,eur:0,n:0,students:0};
+    hint.textContent=(avg?"Prints spent on drinks by each nationality divided by its number of students (those who haven't had a drink count too), so big groups don't win by size alone.":'Total Prints spent on drinks by all students of each nationality.')+' A student with two nationalities counts for both.';
+    var groups=new Map(),none={label:'No nationality set',pts:0,n:0,students:0};
     S.members.slice().sort(byName).forEach(function(m){
-      var s=per.get(m.id)||{pts:0,eur:0,n:0},list=natList(m.nat);
-      var targets=list.length?list.map(function(n){var k=norm(n);if(!groups.has(k))groups.set(k,{label:n,pts:0,eur:0,n:0,students:0});return groups.get(k)}):[none];
-      targets.forEach(function(g){g.pts=r2(g.pts+s.pts);g.eur=r2(g.eur+s.eur);g.n+=s.n;g.students++});
+      var s=per.get(m.id)||{pts:0,n:0},list=natList(m.nat);
+      var targets=list.length?list.map(function(n){var k=norm(n);if(!groups.has(k))groups.set(k,{label:n,pts:0,n:0,students:0});return groups.get(k)}):[none];
+      targets.forEach(function(g){g.pts=r2(g.pts+s.pts);g.n+=s.n;g.students++});
     });
     var gs=Array.from(groups.values());
     gs.forEach(function(g){g.avg=g.students?r2(g.pts/g.students):0});
@@ -813,7 +807,7 @@ function renderRank(){
     if(!gs.length){ul.replaceChildren(emptyBox('No nationalities yet','Set a nationality on each student in the Accounts tab to see this ranking.'));return}
     var nodes=gs.map(function(g,i){
       var v=avg?g.avg:g.pts;
-      return lbRow(i+1,g.label,null,fmt(v)+' Prints',avg?'per student · '+fmt(g.pts)+' total · '+g.students+' '+plural(g.students,'student','students'):eur(g.eur)+' · '+g.students+' '+plural(g.students,'student','students'),null);
+      return lbRow(i+1,g.label,null,fmt(v)+' Prints',avg?'per student · '+fmt(g.pts)+' total · '+g.students+' '+plural(g.students,'student','students'):g.n+' '+plural(g.n,'drink','drinks')+' · '+g.students+' '+plural(g.students,'student','students'),null);
     });
     if(none.students)nodes.push(lbRow(0,none.label,null,fmt(none.pts)+' Prints',none.students+' '+plural(none.students,'student','students')+' · not ranked',null,'muted'));
     ul.replaceChildren.apply(ul,nodes);
@@ -980,10 +974,10 @@ function renderSheet(focus){
   kids.push(h('div',{class:'sh-head'},h('h2',{id:'sh-title',text:dn(m)}),xb));
   kids.push(h('div',{class:'bigbal '+k},h('b',{class:'num',text:fmt(b)}),h('span',{text:'Prints'})));
   kids.push(h('p',{class:'hint',text:(b<0?'Owes '+eur(r2(-b/S.cfg.ppe))+' ('+zl(-b)+')':'≈ '+eur(r2(b/S.cfg.ppe))+' · ≈ '+zl(b))+(m.ex?' · example account':'')+(on?'':' · deactivated')}));
-  var tp=S.tot.get(m.id)||0,li=lvIdx(tp),LV=LEVELS[li],nx=LEVELS[li+1];
+  var tp=served(m.id),li=lvIdx(tp),LV=LEVELS[li],nx=LEVELS[li+1];
   kids.push(h('div',{class:'lvbox'},h('span',{class:'lvtag',text:'Level '+li+' · '+LV.name}),
     nx?h('div',{class:'lvbar',role:'img','aria-label':'Progress to the next level'},h('i',{style:'width:'+Math.round(Math.min(1,(tp-LV.at)/(nx.at-LV.at))*100)+'%'})):null,
-    h('p',{class:'hint',style:nx?null:'margin-top:8px',text:nx?fmt(r2(nx.at-tp))+' more '+PR(r2(nx.at-tp))+' topped up to reach '+nx.name+' ('+fmt(tp)+' so far).':'Top level reached with '+fmt(tp)+' Prints topped up.'})));
+    h('p',{class:'hint',style:nx?null:'margin-top:8px',text:nx?fmt(r2(nx.at-tp))+' more '+PR(r2(nx.at-tp))+' spent on drinks to reach '+nx.name+' ('+fmt(tp)+' so far).':'Top level reached with '+fmt(tp)+' Prints spent on drinks.'})));
   if(W&&on){
     var items=cartItems(m.id),total=cartTotal(items);
     var grid=S.cfg.menu.map(function(p){
