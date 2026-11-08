@@ -491,8 +491,22 @@ function sanCfg(d){
   c.neg=d.neg===true;
   return c;
 }
+/* Names are shown as "First La." (first word + first two letters of the rest). Only the display changes:
+   the stored name stays whole, search still matches it, and two people who would get the same short
+   name keep their full names. */
+function shortNames(members){
+  var parts=members.map(function(m){
+    var w=m.name.trim().split(/\s+/);if(w.length<2)return {m:m,s:m.name};
+    var two=Array.from(w.slice(1).join('').replace(/[^\p{L}]/gu,'')).slice(0,2).join('');
+    return {m:m,s:two?w[0]+' '+two+'.':m.name};
+  });
+  var count=new Map();parts.forEach(function(p){var k=norm(p.s);count.set(k,(count.get(k)||0)+1)});
+  return new Map(parts.map(function(p){return [p.m.id,count.get(norm(p.s))>1?p.m.name:p.s]}));
+}
+var dn=function(m){return (S.short&&S.short.get(m.id))||m.name};
 function derive(){
   S.mm=new Map(S.members.map(function(m){return [m.id,m]}));
+  S.short=shortNames(S.members);
   S.bal=new Map();S.voided=new Set();S.by=new Map();S.drinks=0;S.tot=new Map();
   S.ops.forEach(function(o){if(o.k==='void')S.voided.add(o.v)});
   S.ops.forEach(function(o){
@@ -560,7 +574,7 @@ function sell(m){
     if(!id)return;
     S.cart={mid:null,q:{}};
     closeSheet();$('q-bar').value='';update();
-    toast(m.name+': '+itemsText(items)+' ('+fmt(cost)+' '+PR(cost)+')',null,{label:'Undo',fn:function(){voidOp({id:id,m:m.id,p:-cost,k:'drink'})}});
+    toast(dn(m)+': '+itemsText(items)+' ('+fmt(cost)+' '+PR(cost)+')',null,{label:'Undo',fn:function(){voidOp({id:id,m:m.id,p:-cost,k:'drink'})}});
   });
 }
 function credit(){
@@ -575,7 +589,7 @@ function credit(){
   addOp({m:m.id,k:'topup',p:pts,e:eu,n:note}).then(function(id){
     S.busy=false;
     if(!id)return;
-    toast('+'+fmt(pts)+' '+PR(pts)+' for '+m.name+lu,null,{label:'Undo',fn:function(){voidOp({id:id,m:m.id,p:pts,k:'topup'})}});
+    toast('+'+fmt(pts)+' '+PR(pts)+' for '+dn(m)+lu,null,{label:'Undo',fn:function(){voidOp({id:id,m:m.id,p:pts,k:'topup'})}});
     S.top={mid:null,euros:null};$('top-custom').value='';$('top-note').value='';$('q-top').value='';
     renderTopup();
   });
@@ -607,7 +621,7 @@ function pill(b){var k=b<0?'bad':(b<minPrice()?'warn':'ok');return h('span',{cla
 function memRow(m,fn){
   return h('li',null,h('button',{class:'row',type:'button',onclick:function(){fn(m)}},
     h('span',{class:'av','aria-hidden':'true',text:ini(m.name)}),
-    h('span',{class:'rn'},h('span',{class:'nm',text:m.name}),m.nat?h('span',{class:'tag',text:m.nat}):null,m.ex?h('span',{class:'tag',text:'example'}):null,m.active===false?h('span',{class:'tag',text:'deactivated'}):null),
+    h('span',{class:'rn'},h('span',{class:'nm',text:dn(m)}),m.nat?h('span',{class:'tag',text:m.nat}):null,m.ex?h('span',{class:'tag',text:'example'}):null,m.active===false?h('span',{class:'tag',text:'deactivated'}):null),
     pill(bal(m.id))));
 }
 function filt(list,q){q=norm(q);return q?list.filter(function(m){return norm(m.name).indexOf(q)>-1}):list}
@@ -629,7 +643,7 @@ function histItem(o,showName){
     }});
   }
   return h('li',{class:dead?'dead':null},
-    h('div',{class:'w'},(showName&&m)?h('b',{text:m.name+' · '}):null,opLabel(o),dead?h('span',{class:'tag',text:'voided',style:'margin-left:6px'}):null,h('small',{text:dtf.format(new Date(o.ts))})),
+    h('div',{class:'w'},(showName&&m)?h('b',{text:dn(m)+' · '}):null,opLabel(o),dead?h('span',{class:'tag',text:'voided',style:'margin-left:6px'}):null,h('small',{text:dtf.format(new Date(o.ts))})),
     h('span',{class:'p num '+(o.p>0?'pos':(o.p<0?'neg':'')),text:sgn(o.p)}),btn);
 }
 
@@ -684,7 +698,7 @@ function renderTopup(){
   if(S.top.mid&&!m)S.top.mid=null;
   $('top-pick').hidden=!!m;$('top-sel').hidden=!m;$('top-form').hidden=!m;
   if(m){
-    $('top-sel').replaceChildren(h('div',{class:'sel'},h('span',{class:'av','aria-hidden':'true',text:ini(m.name)}),h('span',{class:'rn'},h('span',{class:'nm',text:m.name})),pill(bal(m.id)),
+    $('top-sel').replaceChildren(h('div',{class:'sel'},h('span',{class:'av','aria-hidden':'true',text:ini(m.name)}),h('span',{class:'rn'},h('span',{class:'nm',text:dn(m)})),pill(bal(m.id)),
       h('button',{class:'btn ghost small',type:'button',text:'Change',onclick:function(){S.top.mid=null;S.top.euros=null;$('top-custom').value='';renderTopup()}})));
     renderAmts();renderPrev();
   }else{
@@ -715,7 +729,7 @@ function renderPrev(){
   if(!m||!(eu>0)){p.textContent='Choose an amount or type one.';go.disabled=true;go.textContent='Credit the account';return}
   var pts=r2(eu*S.cfg.ppe);
   p.replaceChildren(h('b',{class:'num',text:'+'+fmt(pts)+' '+PR(pts)}),' for '+eur(eu)+' (≈ '+zl(pts)+'). New balance: ',h('b',{class:'num',text:fmt(r2(bal(m.id)+pts))+' Prints'}));
-  go.disabled=!!S.busy||eu>1000;go.textContent='Credit '+fmt(pts)+' '+PR(pts)+' to '+m.name;
+  go.disabled=!!S.busy||eu>1000;go.textContent='Credit '+fmt(pts)+' '+PR(pts)+' to '+dn(m);
 }
 
 /* ---------- ranking ---------- */
@@ -747,7 +761,7 @@ function renderLevels(ul,hint){
       var sub=i===0?'under '+fmt(LEVELS[1].at)+' Prints':'from '+fmt(L.at)+' Prints';
       var body=g.length?h('ul',{class:'rows'},g.map(function(r){
         return h('li',null,h('button',{class:'row',type:'button',style:'min-height:48px',onclick:function(){openSheet(r.m.id)}},
-          h('span',{class:'rn'},h('span',{class:'nm',text:r.m.name}),r.m.nat?h('span',{class:'tag',text:r.m.nat}):null),
+          h('span',{class:'rn'},h('span',{class:'nm',text:dn(r.m)}),r.m.nat?h('span',{class:'tag',text:r.m.nat}):null),
           h('span',{class:'num',text:fmt(r.p)+' '+PR(r.p)})));
       })):h('p',{class:'hint',style:'padding-top:4px',text:'Nobody here yet.'});
       nodes.push(h('li',null,h('details',{class:'more lvl',open:(i>0&&g.length>0&&g.length<=8)},
@@ -781,7 +795,7 @@ function renderRank(){
     var lim=S.rk.all?rows.length:20;
     ul.replaceChildren.apply(ul,rows.slice(0,lim).map(function(r,i){
       var tags=[h('span',{class:'tag lv',text:LEVELS[lvIdx(r.s.pts)].short}),r.m.nat?h('span',{class:'tag',text:r.m.nat}):null,r.m.ex?h('span',{class:'tag',text:'example'}):null,r.m.active===false?h('span',{class:'tag',text:'deactivated'}):null];
-      return lbRow(i+1,r.m.name,tags,fmt(r.s.pts)+' Prints',eur(r.s.eur)+' · '+r.s.n+' '+plural(r.s.n,'top-up','top-ups'),function(){openSheet(r.m.id)});
+      return lbRow(i+1,dn(r.m),tags,fmt(r.s.pts)+' Prints',eur(r.s.eur)+' · '+r.s.n+' '+plural(r.s.n,'top-up','top-ups'),function(){openSheet(r.m.id)});
     }));
     if(rows.length>lim)more.replaceChildren(h('button',{class:'btn ghost',type:'button',text:'Show all '+rows.length,onclick:function(){S.rk.all=true;renderRank()}}));
   }else{
@@ -963,7 +977,7 @@ function renderSheet(focus){
   var kids=[];
   var xb=h('button',{class:'x',type:'button','aria-label':'Close',id:'sh-close',onclick:closeSheet});
   xb.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-  kids.push(h('div',{class:'sh-head'},h('h2',{id:'sh-title',text:m.name}),xb));
+  kids.push(h('div',{class:'sh-head'},h('h2',{id:'sh-title',text:dn(m)}),xb));
   kids.push(h('div',{class:'bigbal '+k},h('b',{class:'num',text:fmt(b)}),h('span',{text:'Prints'})));
   kids.push(h('p',{class:'hint',text:(b<0?'Owes '+eur(r2(-b/S.cfg.ppe))+' ('+zl(-b)+')':'≈ '+eur(r2(b/S.cfg.ppe))+' · ≈ '+zl(b))+(m.ex?' · example account':'')+(on?'':' · deactivated')}));
   var tp=S.tot.get(m.id)||0,li=lvIdx(tp),LV=LEVELS[li],nx=LEVELS[li+1];
