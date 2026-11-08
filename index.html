@@ -380,10 +380,10 @@ body.locked #v-login{display:block}
           <span class="lbl" id="sw-lbl">Colour</span>
           <div class="swatches" id="swatches" role="group" aria-labelledby="sw-lbl"></div>
         </div>
-        <label class="check" for="s-neg">
-          <input type="checkbox" id="s-neg">
-          <span><b>Allow a negative balance</b><br><span class="hint">A drink can then be served without Prints, and the account goes below zero.</span></span>
-        </label>
+        <div>
+          <span class="lbl">Negative balance</span>
+          <p class="hint">An account can go down to <b>−5 Prints</b>. Below that, drinks can't be served until it is topped up.</p>
+        </div>
         <button class="btn" id="s-save" type="button">Save settings</button>
         <hr class="sep">
         <div class="card">
@@ -419,6 +419,8 @@ body.locked #v-login{display:block}
 'use strict';
 document.documentElement.lang='en';
 
+// Accounts may go below zero, down to −NEG_MAX Prints; past that, nothing can be served until a top-up.
+var NEG_MAX=5;
 var DEF={barName:'Bar Prints',menu:[{id:'beer',name:'Beer',pts:1.5},{id:'wine',name:'Wine',pts:1.5},{id:'cocktail',name:'Cocktail',pts:2.5},{id:'mocktail',name:'Mocktail',pts:2},{id:'soft',name:'Soft',pts:1},{id:'shot',name:'Shot',pts:1.5}],ppe:1,pln:4.25,amounts:[5,10,15,20,30,50],accent:'bordeaux',neg:false};
 var ACC={bordeaux:['Bordeaux','#7B1E2B'],teal:['Teal','#0F766E'],indigo:['Indigo','#4F46E5'],rose:['Rose','#BE123C'],orange:['Orange','#C2410C'],violet:['Violet','#7C3AED'],green:['Green','#15803D']};
 var S={db:null,offline:false,members:[],ops:[],mm:new Map(),cfg:Object.assign({},DEF),bal:new Map(),voided:new Set(),by:new Map(),drinks:0,
@@ -571,7 +573,7 @@ function sell(m){
   if(S.busy)return;
   var items=cartItems(m.id);if(!items.length)return;
   var cost=cartTotal(items),qty=items.reduce(function(s,x){return s+x.q},0),b=bal(m.id),s0=served(m.id),lu=lvIdx(s0+cost)>lvIdx(s0)?' · now '+LEVELS[lvIdx(s0+cost)].name:'';
-  if(!S.cfg.neg&&b<cost-1e-9){toast('Not enough Prints: '+fmt(b)+' available, '+fmt(cost)+' needed.','bad');return}
+  if(b-cost<-NEG_MAX-1e-9){toast('Not enough Prints: '+fmt(b)+' available and the limit is −'+NEG_MAX+'. Top up first.','bad');return}
   S.busy=true;
   addOp({m:m.id,k:'drink',p:-cost,q:qty,it:items}).then(function(id){
     S.busy=false;
@@ -895,10 +897,10 @@ function renderSet(){
   if(!S.setDirty){
     $('s-name').value=S.cfg.barName;$('s-ppe').value=fmt(S.cfg.ppe);$('s-pln').value=fmt(S.cfg.pln);
     S.menuDraft=S.cfg.menu.map(function(x){return {id:x.id,name:x.name,ps:fmt(x.pts)}});
-    $('s-amts').value=S.cfg.amounts.map(function(a){return fmt(a)}).join(' ');$('s-neg').checked=S.cfg.neg;
+    $('s-amts').value=S.cfg.amounts.map(function(a){return fmt(a)}).join(' ');
     S.lvDraft=LEVELS.map(function(L){return L.name});
   }
-  ['s-name','s-ppe','s-pln','s-amts','s-neg','s-save','menu-add','lv-reset'].forEach(function(id){$(id).disabled=!adm});
+  ['s-name','s-ppe','s-pln','s-amts','s-save','menu-add','lv-reset'].forEach(function(id){$(id).disabled=!adm});
   renderMenuEd(adm);renderLvEd(adm);
   var sw=$('swatches');
   sw.replaceChildren.apply(sw,Object.keys(ACC).map(function(k){
@@ -946,7 +948,7 @@ function saveSet(){
   var lv=(S.lvDraft||[]).map(function(v){return String(v).trim().replace(/\s+/g,' ')});
   if(lv.length!==LEVELS.length||lv.some(function(v){return !v||v.length>60})){toast('Every level needs a name (60 characters at most).','bad');return}
   var accent=curAccent();
-  tryW(function(){return S.db.doc('config/main').set({barName:name,menu:menu,ppe:r2(pp),pln:r2(pl),amounts:am.map(r2),accent:accent,neg:$('s-neg').checked,lv:lv})}).then(function(ok){
+  tryW(function(){return S.db.doc('config/main').set({barName:name,menu:menu,ppe:r2(pp),pln:r2(pl),amounts:am.map(r2),accent:accent,neg:S.cfg.neg,lv:lv})}).then(function(ok){
     if(ok){S.setDirty=false;S.pendingAccent=null;toast('Settings saved.')}
   });
 }
@@ -981,12 +983,12 @@ function renderSheet(focus){
   if(W&&on){
     var items=cartItems(m.id),total=cartTotal(items);
     var grid=S.cfg.menu.map(function(p){
-      var qn=(S.cart.mid===m.id&&S.cart.q[p.id])||0,dis=!S.cfg.neg&&b-total<p.pts-1e-9;
+      var qn=(S.cart.mid===m.id&&S.cart.q[p.id])||0,dis=b-total-p.pts<-NEG_MAX-1e-9;
       return h('button',{class:'drink'+(qn?' on':''),type:'button',disabled:dis,onclick:function(){cartAdd(m.id,p.id,1)}},
         qn?h('i',{class:'qty num',text:'×'+qn}):null,h('b',{text:p.name}),h('span',{class:'num',text:fmt(p.pts)+' '+PR(p.pts)}),h('span',{class:'num',style:'font-size:12px',text:'≈ '+zl(p.pts)}));
     });
     kids.push(h('div',{class:'drinks'},grid));
-    if(!S.cfg.neg&&b<minPrice())kids.push(h('p',{class:'hint',style:'margin-top:10px',text:'Not enough Prints for anything on the menu.'}));
+    if(b-minPrice()<-NEG_MAX-1e-9)kids.push(h('p',{class:'hint',style:'margin-top:10px',text:'Not enough Prints for anything on the menu: the limit is −'+NEG_MAX+' Prints. Top up first.'}));
     if(items.length){
       kids.push(h('div',{class:'order'},
         h('div',{class:'chips'},items.map(function(x){
@@ -1061,7 +1063,7 @@ $('rk-pc').addEventListener('click',function(){S.rk.mode='natavg';renderRank()})
 $('export').addEventListener('click',exportCsv);
 $('s-save').addEventListener('click',saveSet);
 $('lv-reset').addEventListener('click',function(){S.lvDraft=LEVELS.map(function(L){return L.dn});S.setDirty=true;renderLvEd(S.isAdmin&&!!S.db)});
-['s-name','s-ppe','s-pln','s-amts','s-neg'].forEach(function(id){$(id).addEventListener('input',function(){S.setDirty=true})});
+['s-name','s-ppe','s-pln','s-amts'].forEach(function(id){$(id).addEventListener('input',function(){S.setDirty=true})});
 $('menu-add').addEventListener('click',function(){
   if(S.menuDraft.length>=8){toast('8 items at most.','bad');return}
   S.menuDraft.push({id:'p'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),name:'',ps:''});
