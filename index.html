@@ -545,8 +545,8 @@ function addOp(o){
   var doc=Object.assign({ts:Date.now()},o);
   return tryW(function(){return ref.set(doc)}).then(function(ok){return ok?ref.id:null});
 }
-// The bar account can only void drinks; anything that moves money is admin-only.
-function canVoid(o){return (o.k==='drink'||(S.isAdmin&&(o.k==='topup'||o.k==='adjust')))&&!S.voided.has(o.id)}
+// Voiding (history Void buttons and the Undo after a serve) is admin-only: the shared bar account can't cancel anything.
+function canVoid(o){return S.isAdmin&&(o.k==='drink'||o.k==='topup'||o.k==='adjust')&&!S.voided.has(o.id)}
 function voidOp(o){
   if(S.voided.has(o.id))return Promise.resolve(null);
   return addOp({m:o.m,k:'void',p:r2(-o.p),v:o.id}).then(function(id){if(id)toast('Operation voided.');return id});
@@ -574,7 +574,7 @@ function sell(m){
     if(!id)return;
     S.cart={mid:null,q:{}};
     closeSheet();$('q-bar').value='';update();
-    toast(dn(m)+': '+itemsText(items)+' ('+fmt(cost)+' '+PR(cost)+')',null,{label:'Undo',fn:function(){voidOp({id:id,m:m.id,p:-cost,k:'drink'})}});
+    toast(dn(m)+': '+itemsText(items)+' ('+fmt(cost)+' '+PR(cost)+')',null,S.isAdmin?{label:'Undo',fn:function(){voidOp({id:id,m:m.id,p:-cost,k:'drink'})}}:null);
   });
 }
 function credit(){
